@@ -2,7 +2,7 @@ pipeline {
     agent any
     tools {
         maven 'M3'
-        jdk 'jdk17'  # Doit correspondre au Dockerfile
+        jdk 'jdk17'
     }
     
     environment {
@@ -12,8 +12,8 @@ pipeline {
     stages {
         stage('Build') {
             steps {
-                sh 'mvn clean package -DskipTests'  # Construction sans tests pour la démo
-                stash includes: 'target/*.jar', name: 'app-jar'  # Conservation du JAR
+                sh 'mvn clean package -DskipTests'
+                stash includes: 'target/*.jar', name: 'app-jar'
             }
         }
 
@@ -29,18 +29,12 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    // Arrêt propre des conteneurs existants
                     sh 'docker-compose down --remove-orphans || true'
-                    
-                    // Démarrage avec build forcé et logs détaillés
                     sh 'docker-compose up -d --build'
-                    
-                    // Attente intelligente
                     sh '''
                     attempt=0
                     while [ $attempt -lt 10 ]; do
                         if docker-compose ps | grep spring-boot-app | grep Up; then
-                            echo "Application démarrée!"
                             break
                         fi
                         attempt=$((attempt+1))
