@@ -1,34 +1,60 @@
 pipeline {
-    agent any 
-    tools { 
-        maven 'maven'
+    agent any
+    tools {
+        maven 'M3'
+        jdk 'jdk17'  # Doit correspondre au Dockerfile
     }
     
+    environment {
+        DOCKER_IMAGE = 'docexp1-spring'
+    }
+
     stages {
-        stage ("Clean up"){
+        stage('Build') {
             steps {
-                deleteDir()
+                sh 'mvn clean package -DskipTests'  # Construction sans tests pour la démo
+                stash includes: 'target/*.jar', name: 'app-jar'  # Conservation du JAR
             }
         }
-        stage ("Clone repo"){
+
+        stage('Docker Build') {
             steps {
-                sh "git clone https://github.com/MaBouz/tp3jenkins.git"
+                unstash 'app-jar'
+                script {
+                    docker.build("${env.DOCKER_IMAGE}")
+                }
             }
         }
-        stage ("Generate backend image") {
-              steps {
-                   dir("tp3jenkins"){
-                      sh "mvn clean install"
-                      sh "docker build -t tp3jenkins ."
-                  }                
-              }
-          }
-        stage ("Run docker compose") {
+
+        stage('Deploy') {
             steps {
-                 dir("tp3jenkins"){
-                    sh " docker-compose up -d"
-                }                
+                script {
+                    // Arrêt propre des conteneurs existants
+                    sh 'docker-compose down --remove-orphans || true'
+                    
+                    // Démarrage avec build forcé et logs détaillés
+                    sh 'docker-compose up -d --build'
+                    
+                    // Attente intelligente
+                    sh '''
+                    attempt=0
+                    while [ $attempt -lt 10 ]; do
+                        if docker-compose ps | grep spring-boot-app | grep Up; then
+                            echo "Application démarrée!"
+                            break
+                        fi
+                        attempt=$((attempt+1))
+                        sleep 10
+                    done
+                    '''
+                }
             }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker-compose logs --no-color --tail=100 spring-boot-app'
         }
     }
 }
