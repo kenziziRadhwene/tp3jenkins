@@ -1,54 +1,34 @@
 pipeline {
-    agent any
-    tools {
-        maven 'M3'
-        jdk 'jdk17'
+    agent any 
+    tools { 
+        maven 'maven'
     }
     
-    environment {
-        DOCKER_IMAGE = 'docexp1-spring'
-    }
-
     stages {
-        stage('Build') {
+        stage ("Clean up"){
             steps {
-                sh 'mvn clean package -DskipTests'
-                stash includes: 'target/*.jar', name: 'app-jar'
+                deleteDir()
             }
         }
-
-        stage('Docker Build') {
+        stage ("Clone repo"){
             steps {
-                unstash 'app-jar'
-                script {
-                    docker.build("${env.DOCKER_IMAGE}")
-                }
+                sh "git clone https://github.com/MaBouz/tp3jenkins.git"
             }
         }
-
-        stage('Deploy') {
+        stage ("Generate backend image") {
+              steps {
+                   dir("tp3jenkins"){
+                      sh "mvn clean install"
+                      sh "docker build -t tp3jenkins ."
+                  }                
+              }
+          }
+        stage ("Run docker compose") {
             steps {
-                script {
-                    sh 'docker-compose down --remove-orphans || true'
-                    sh 'docker-compose up -d --build'
-                    sh '''
-                    attempt=0
-                    while [ $attempt -lt 10 ]; do
-                        if docker-compose ps | grep spring-boot-app | grep Up; then
-                            break
-                        fi
-                        attempt=$((attempt+1))
-                        sleep 10
-                    done
-                    '''
-                }
+                 dir("tp3jenkins"){
+                    sh " docker-compose up -d"
+                }                
             }
-        }
-    }
-
-    post {
-        always {
-            sh 'docker-compose logs --no-color --tail=100 spring-boot-app'
         }
     }
 }
