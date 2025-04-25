@@ -12,7 +12,7 @@ pipeline {
         }
         stage ("Clone repo"){
             steps {
-                sh "git https://github.com/kenziziRadhwene/tp3jenkins.git"
+                sh "git clone https://github.com/kenziziRadhwene/tp3jenkins.git"
             }
         }
         stage ("Generate backend image") {
